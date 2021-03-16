@@ -8,11 +8,14 @@ class COVID19(object):
     data_source = ""
     previousData = None
     latestData = None
-    _valid_data_sources = []
-
+    _valid_data_sources = [] 
+    user_lists = {}
+    alternate_sources = {}
+    
     mirrors_source = "https://raw.github.com/Kamaropoulos/COVID19Py/master/mirrors.json"
     mirrors = None
 
+    
     def __init__(self, url="https://covid-tracker-us.herokuapp.com", data_source='jhu'):
         # Skip mirror checking if custom url was passed
         if url == self.default_url:
@@ -156,3 +159,48 @@ class COVID19(object):
         """
         data = self._request("/v2/locations/" + str(country_id))
         return data["location"]
+    
+    def getAlternateSource(self, name, url="https://covid-tracker-us.herokuapp.com", data_source='jhu'):
+        """
+        :param name: A unique (within dictionary alternate_sources) identifying name for an alternate instance
+        of COVID19Py that uses a different URL or data source. If the name is not unique then the original instance
+        of this class is retrieved and any URL or data source passed is ignored.
+        :param url: The url of the API you wish COVID19Py to use
+        :param data_source: The data source you wish to retreive information from through COVID19Py
+        :param timelines: Whether timeline information should be returned as well.   
+        :return: An instance of COVID19Py using the url and data_source from passed parameters.
+            If there are any issues with either the URL or data source exceptions are handled
+            as if you are creating a new instance of COVID19Py
+        """
+        alt = None
+        result = None
+        
+        alt = self.alternate_sources.get(name)
+        
+        #Check if an alternate source exists else create a new one
+        if alt is None:
+            self.alternate_sources.update({name: ALT_SOURCES(url, data_source)})
+            alt = self.alternate_sources.get(name)
+            result = alt._accessAlt()
+        else:
+            result = alt._accessAlt()
+                
+        return result
+    
+            
+class ALT_SOURCES(object):
+    
+    url = ""
+    data_source = ""
+    covid19_obj = None
+    
+    #We attempt to create a COVID19Py object with the passed url and data_source before
+    #setting the class values. This is so we can use the default url if the user passed
+    #an invalid url. This is handled in COVID19Py.__init__
+    def __init__(self, url, data_source):
+        self.covid19_obj = COVID19(url, data_source)
+        self.url = self.covid19_obj.url 
+        self.data_source = self.covid19_obj.data_source
+    
+    def _accessAlt(self):
+        return self.covid19_obj
