@@ -1,14 +1,56 @@
+from __future__ import annotations
 from typing import Dict, List
 import requests
 import json
 
-class COVID19(object):
+
+class User:
+    # this class allows users to compare a list of data sources
+    # TO DO: populate the class with methods to compare (using those from COVID19 class)
+    # see example methods below
+
+    def __init__(self, user_id: str, sources: List[Covid19DataSource]):
+        for source in sources:
+            if source.user_id == "":
+                source.user_id = user_id
+            else:
+                sources.remove(source)  # remove source from list if the source is used by another User object
+
+        if len(sources) > 1:  # make sure list has at least 2 data sources
+            self.sources = sources
+            self.user_id = user_id
+        else:
+            raise ValueError("list provided does not have more than one data source")
+
+    # if you want to compare the number of locations in each source
+    # and from here choose the one with the most locations
+    def getNumberOfLocations(self):
+        for source in self.sources:
+            print("Source with url: " + source.url + "has " + str(len(source.getLocations())) + " locations")
+
+    # search all data sources until one retrieves the data needed
+    def getDataByCountryName(self, country) -> List[Dict]:
+        for source in self.sources:
+            if source.getLocationByCountry(country):  # means return is not empty list so country found
+                return source.getLocationByCountry(country)
+        return []  # none of the sources had the country being looked for
+
+    # search all data sources until one retrieves the data needed
+    def getDataByCountryCode(self, country_code) -> List[Dict]:
+        for source in self.sources:
+            if source.getLocationByCountryCode(country_code):  # means return is not empty list so country found
+                return source.getLocationByCountryCode(country_code)
+        return []  # none of the sources had the country being looked for
+
+
+class Covid19DataSource(object):
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
     data_source = ""
     previousData = None
     latestData = None
     _valid_data_sources = []
+    user_id = ""
 
     mirrors_source = "https://raw.github.com/Kamaropoulos/COVID19Py/master/mirrors.json"
     mirrors = None
@@ -67,7 +109,7 @@ class COVID19(object):
     def _request(self, endpoint, params=None):
         if params is None:
             params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
+        response = requests.get(self.url + endpoint, {**params, "source": self.data_source})
         response.raise_for_status()
         return response.json()
 
@@ -79,9 +121,9 @@ class COVID19(object):
         changes = None
         if self.previousData:
             changes = {
-                "confirmed": self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"],
-                "deaths": self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"],
-                "recovered": self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"],
+                "confirmed": self.latestData["latest"]["confirmed"] - self.previousData["latest"]["confirmed"],
+                "deaths": self.latestData["latest"]["deaths"] - self.previousData["latest"]["deaths"],
+                "recovered": self.latestData["latest"]["recovered"] - self.previousData["latest"]["recovered"],
             }
         else:
             changes = {
@@ -112,7 +154,7 @@ class COVID19(object):
             data = self._request("/v2/locations")
 
         data = data["locations"]
-        
+
         ranking_criteria = ['confirmed', 'deaths', 'recovered']
         if rank_by is not None:
             if rank_by not in ranking_criteria:
@@ -135,7 +177,7 @@ class COVID19(object):
         else:
             data = self._request("/v2/locations", {"country_code": country_code})
         return data["locations"]
-    
+
     def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
         """
         :param country: String denoting name of the country
