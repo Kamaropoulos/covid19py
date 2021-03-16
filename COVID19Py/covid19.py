@@ -2,6 +2,7 @@ from typing import Dict, List
 import requests
 import json
 
+
 class COVID19(object):
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
@@ -156,3 +157,6 @@ class COVID19(object):
         """
         data = self._request("/v2/locations/" + str(country_id))
         return data["location"]
+    
+    
+    
