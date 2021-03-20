@@ -2,6 +2,7 @@ from typing import Dict, List
 import requests
 import json
 
+
 class COVID19(object):
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
@@ -67,7 +68,7 @@ class COVID19(object):
     def _request(self, endpoint, params=None):
         if params is None:
             params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
+        response = requests.get(self.url + endpoint, {**params, "source": self.data_source})
         response.raise_for_status()
         return response.json()
 
@@ -77,11 +78,12 @@ class COVID19(object):
 
     def getLatestChanges(self):
         changes = None
+        changeMake = confirmCases(self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"], self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"], self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"])
         if self.previousData:
             changes = {
-                "confirmed": self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"],
-                "deaths": self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"],
-                "recovered": self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"],
+                "confirmed": changeMake.confirmed,
+                "deaths": changeMake.goToDetails().detailsVariable.deaths,
+                "recovered": changeMake.goToDetails().detailsVariable.recovered,
             }
         else:
             changes = {
@@ -112,7 +114,7 @@ class COVID19(object):
             data = self._request("/v2/locations")
 
         data = data["locations"]
-        
+
         ranking_criteria = ['confirmed', 'deaths', 'recovered']
         if rank_by is not None:
             if rank_by not in ranking_criteria:
@@ -135,7 +137,7 @@ class COVID19(object):
         else:
             data = self._request("/v2/locations", {"country_code": country_code})
         return data["locations"]
-    
+
     def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
         """
         :param country: String denoting name of the country
@@ -156,3 +158,17 @@ class COVID19(object):
         """
         data = self._request("/v2/locations/" + str(country_id))
         return data["location"]
+
+class confirmCases:
+    def __init__(self, confirmed, deaths, recovered):
+        self.confirmed = confirmed
+        self.deaths = deaths
+        self.recovered = recovered
+
+    def goToDetails(self):
+        detailsVariable = caseDetails(self.deaths, self.recovered)
+
+class caseDetails:
+    def __init__(self, deaths, recovered):
+        self.deaths = deaths
+        self.recovered = recovered
