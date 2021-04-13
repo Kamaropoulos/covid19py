@@ -2,6 +2,50 @@ from typing import Dict, List
 import requests
 import json
 
+
+# class to format output for country (name, code, id) data
+class Formatter1:
+    # use for country by name and code methods
+    @staticmethod
+    def format1(self, data):
+        for i in data:
+            print('-------------------------------------------')
+            for key, value in i.items():
+                print(key, ': ', value)
+            print('-------------------------------------------')
+        return ""
+
+    # use for country by id methods
+    @staticmethod
+    def format2(self, data):
+        print('-------------------------------------------')
+        for key, value in data.items():
+            print(key, ': ', value)
+        print('-------------------------------------------')
+        return ""
+
+
+# class to format output for all data
+class Formatter2:
+    @staticmethod
+    def formatAllData(self, data):
+        print("--------------Latest Total Data----------------")
+        # first get the data for latest (value for key latest)
+        data1 = data.get('latest')
+        # reformat to display on each line vertically
+        for key, value in data1.items():
+            print(key, ': ', value)
+        # second, get the data for locations (value for key locations)
+        print("-------------List of All Locations-------------")
+        data2 = data.get('locations')
+        for i in data2:
+            # takes each dictionary item
+            for key, value in i.items():
+                print(key, ': ', value)
+            print('-------------------------------------------')
+        return ""
+
+
 class COVID19(object):
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
@@ -67,13 +111,13 @@ class COVID19(object):
     def _request(self, endpoint, params=None):
         if params is None:
             params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
+        response = requests.get(self.url + endpoint, {**params, "source": self.data_source})
         response.raise_for_status()
         return response.json()
 
     def getAll(self, timelines=False):
         self._update(timelines)
-        return self.latestData
+        return Formatter2.formatAllData(self, self.latestData)
 
     def getLatestChanges(self):
         changes = None
@@ -112,7 +156,7 @@ class COVID19(object):
             data = self._request("/v2/locations")
 
         data = data["locations"]
-        
+
         ranking_criteria = ['confirmed', 'deaths', 'recovered']
         if rank_by is not None:
             if rank_by not in ranking_criteria:
@@ -123,7 +167,7 @@ class COVID19(object):
 
         return data
 
-    def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
+    def getLocationByCountryCode(self, country_code, timelines=False):
         """
         :param country_code: String denoting the ISO 3166-1 alpha-2 code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) of the country
         :param timelines: Whether timeline information should be returned as well.
@@ -134,9 +178,9 @@ class COVID19(object):
             data = self._request("/v2/locations", {"country_code": country_code, "timelines": str(timelines).lower()})
         else:
             data = self._request("/v2/locations", {"country_code": country_code})
-        return data["locations"]
-    
-    def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
+        return Formatter1.format1(self, data["locations"])
+
+    def getLocationByCountry(self, country, timelines=False):
         """
         :param country: String denoting name of the country
         :param timelines: Whether timeline information should be returned as well.
@@ -147,7 +191,7 @@ class COVID19(object):
             data = self._request("/v2/locations", {"country": country, "timelines": str(timelines).lower()})
         else:
             data = self._request("/v2/locations", {"country": country})
-        return data["locations"]
+        return Formatter1.format1(self, data["locations"])
 
     def getLocationById(self, country_id: int):
         """
@@ -155,4 +199,4 @@ class COVID19(object):
         :return: A dictionary with case information for the specified location.
         """
         data = self._request("/v2/locations/" + str(country_id))
-        return data["location"]
+        return Formatter1.format2(self, data["location"])
