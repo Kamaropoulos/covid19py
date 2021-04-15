@@ -3,6 +3,57 @@ import requests
 import json
 
 class COVID19(object):
+__metaclass__ = SingletonMeta
+
+COVID19InfoTool retrievalTool
+COVID19Data data
+
+    def __init__(self, url, data_source):
+        retrievalTool = COVID19InfoTool()
+        data = COVID19Data(url, data_source)
+
+    def _update(self, timelines):
+        data._update(timelines)
+
+    def _getSources(self):
+        return retrievalTool._getSources()
+
+    def _request(self, endpoint, params=None):
+        return data._request(endpoint, params)
+
+    def getAll(self, timelines = False):
+        return data.getAll(timelines)
+
+    def getLatestChanges(self):
+        return retrievalTool.getLatestChanges(data.previousData, data.latestData)
+
+    def getLatest(self) -> List[Dict[str, int]]:
+        return retrievalTool.getLatest(data.url, data.data_source)
+
+    def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
+        return retrievalTool.getLocations(timelines, data.url, data.data_source)
+
+    def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
+        return retrievalTool.getLocationByCountryCode(country_code, timelines, data.url, data.data_source)
+
+    def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
+        return retrievalTool.getLocationByCountry(country, timelines, data.url, data.data_source)
+
+    def getLocationById(self, country_id: int):
+        return retrievalTool.getLocationById(country_id, data.url, data.data_source)
+
+
+class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class COVID19Data(object):
+    __metaclass__ = SingletonMeta
+
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
     data_source = ""
@@ -59,29 +110,37 @@ class COVID19(object):
             "locations": locations
         }
 
-    def _getSources(self):
-        response = requests.get(self.url + "/v2/sources")
-        response.raise_for_status()
-        return response.json()["sources"]
-
-    def _request(self, endpoint, params=None):
-        if params is None:
-            params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
-        response.raise_for_status()
-        return response.json()
-
     def getAll(self, timelines=False):
         self._update(timelines)
         return self.latestData
 
-    def getLatestChanges(self):
+
+class COVID19InfoTool(object):
+    __metaclass__ = SingletonMeta
+
+    def __init__(self):
+        pass
+
+    def _getSources(self, url):
+        response = requests.get(url + "/v2/sources")
+        response.raise_for_status()
+        return response.json()["sources"]
+
+    def _request(self, endpoint, params=None, url, data_source):
+        if params is None:
+            params = {}
+        response = requests.get(url + endpoint, {**params, "source":data_source})
+        response.raise_for_status()
+        return response.json()
+
+
+    def getLatestChanges(self, previousData, latestData):
         changes = None
-        if self.previousData:
+        if previousData:
             changes = {
-                "confirmed": self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"],
-                "deaths": self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"],
-                "recovered": self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"],
+                "confirmed": latestData["latest"]["confirmed"] - latestData["latest"]["confirmed"],
+                "deaths": latestData["latest"]["deaths"] - latestData["latest"]["deaths"],
+                "recovered": latestData["latest"]["recovered"] -latestData["latest"]["recovered"],
             }
         else:
             changes = {
@@ -91,14 +150,14 @@ class COVID19(object):
             }
         return changes
 
-    def getLatest(self) -> List[Dict[str, int]]:
+    def getLatest(self, url, data_source) -> List[Dict[str, int]]:
         """
         :return: The latest amount of total confirmed cases, deaths, and recoveries.
         """
-        data = self._request("/v2/latest")
+        data = self._request("/v2/latest", None, url, data_source)
         return data["latest"]
 
-    def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
+    def getLocations(self, timelines=False, rank_by: str = None, url, data_source) -> List[Dict]:
         """
         Gets all locations affected by COVID-19, as well as latest case data.
         :param timelines: Whether timeline information should be returned as well.
@@ -107,12 +166,12 @@ class COVID19(object):
         """
         data = None
         if timelines:
-            data = self._request("/v2/locations", {"timelines": str(timelines).lower()})
+            data = self._request("/v2/locations", {"timelines": str(timelines).lower()}, url, data_source)
         else:
-            data = self._request("/v2/locations")
+            data = self._request("/v2/locations", None, url, data_source)
 
         data = data["locations"]
-        
+
         ranking_criteria = ['confirmed', 'deaths', 'recovered']
         if rank_by is not None:
             if rank_by not in ranking_criteria:
@@ -123,7 +182,7 @@ class COVID19(object):
 
         return data
 
-    def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
+    def getLocationByCountryCode(self, country_code, timelines=False, url, data_source) -> List[Dict]:
         """
         :param country_code: String denoting the ISO 3166-1 alpha-2 code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) of the country
         :param timelines: Whether timeline information should be returned as well.
@@ -131,12 +190,12 @@ class COVID19(object):
         """
         data = None
         if timelines:
-            data = self._request("/v2/locations", {"country_code": country_code, "timelines": str(timelines).lower()})
+            data = self._request("/v2/locations", {"country_code": country_code, "timelines": str(timelines).lower()}, url, data_source)
         else:
-            data = self._request("/v2/locations", {"country_code": country_code})
+            data = self._request("/v2/locations", {"country_code": country_code}, url, data_source)
         return data["locations"]
-    
-    def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
+
+    def getLocationByCountry(self, country, timelines=False, url, data_source) -> List[Dict]:
         """
         :param country: String denoting name of the country
         :param timelines: Whether timeline information should be returned as well.
@@ -144,15 +203,15 @@ class COVID19(object):
         """
         data = None
         if timelines:
-            data = self._request("/v2/locations", {"country": country, "timelines": str(timelines).lower()})
+            data = self._request("/v2/locations", {"country": country, "timelines": str(timelines).lower()}, url, data_source)
         else:
-            data = self._request("/v2/locations", {"country": country})
+            data = self._request("/v2/locations", {"country": country}, url, data_source)
         return data["locations"]
 
-    def getLocationById(self, country_id: int):
+    def getLocationById(self, country_id: int, url, data_source):
         """
         :param country_id: Country Id, an int
         :return: A dictionary with case information for the specified location.
         """
-        data = self._request("/v2/locations/" + str(country_id))
+        data = self._request("/v2/locations/" + str(country_id), None, url, data_source)
         return data["location"]
