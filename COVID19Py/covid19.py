@@ -9,9 +9,19 @@ class COVID19(object):
     previousData = None
     latestData = None
     _valid_data_sources = []
+    #singleton instance private static variable
+    _instance = None
 
     mirrors_source = "https://raw.github.com/Kamaropoulos/COVID19Py/master/mirrors.json"
     mirrors = None
+
+
+    #staticmethod get instance
+    @staticmethod
+    def getInstance():
+        if COVID19._instance is None:
+            COVID19()
+        return COVID19._instance
 
     def __init__(self, url="https://covid-tracker-us.herokuapp.com", data_source='jhu'):
         # Skip mirror checking if custom url was passed
@@ -49,6 +59,10 @@ class COVID19(object):
             raise ValueError("Invalid data source. Expected one of: %s" % self._valid_data_sources)
         self.data_source = data_source
 
+        # assign singleton instance
+        if COVID19._instance is None:
+            COVID19._instance = self
+
     def _update(self, timelines):
         latest = self.getLatest()
         locations = self.getLocations(timelines)
@@ -70,6 +84,14 @@ class COVID19(object):
         response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
         response.raise_for_status()
         return response.json()
+
+    #setter for data source
+    def setDataSource(self, data_source):
+        self.data_source = data_source
+
+    #setter for url source
+    def setUrl(self, url):
+        self.url = url
 
     def getAll(self, timelines=False):
         self._update(timelines)
