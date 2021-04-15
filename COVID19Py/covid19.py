@@ -1,6 +1,7 @@
 from typing import Dict, List
 import requests
 import json
+from abc import ABCMeta, abstractmethod
 
 class COVID19(object):
     default_url = "https://covid-tracker-us.herokuapp.com"
@@ -67,7 +68,7 @@ class COVID19(object):
     def _request(self, endpoint, params=None):
         if params is None:
             params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
+        response = requests.get(self.url + endpoint, {**params, "source": self.data_source})
         response.raise_for_status()
         return response.json()
 
@@ -77,11 +78,12 @@ class COVID19(object):
 
     def getLatestChanges(self):
         changes = None
+        changeMake = CasesDirector.construct()
         if self.previousData:
             changes = {
-                "confirmed": self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"],
-                "deaths": self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"],
-                "recovered": self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"],
+                "confirmed": changeMake.caseList[0],
+                "deaths": changeMake.caseList[1],
+                "recovered": changeMake.caseList[2],
             }
         else:
             changes = {
@@ -112,7 +114,7 @@ class COVID19(object):
             data = self._request("/v2/locations")
 
         data = data["locations"]
-        
+
         ranking_criteria = ['confirmed', 'deaths', 'recovered']
         if rank_by is not None:
             if rank_by not in ranking_criteria:
@@ -135,7 +137,7 @@ class COVID19(object):
         else:
             data = self._request("/v2/locations", {"country_code": country_code})
         return data["locations"]
-    
+
     def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
         """
         :param country: String denoting name of the country
@@ -156,3 +158,70 @@ class COVID19(object):
         """
         data = self._request("/v2/locations/" + str(country_id))
         return data["location"]
+
+class CasesIBuilder(metaclass=ABCMeta):
+    "The Builder Interface"
+
+    @staticmethod
+    @abstractmethod
+    def confirmed_cases():
+        "Function for confirmed cases data"
+
+    @staticmethod
+    @abstractmethod
+    def deaths_cases():
+        "Function for deaths data"
+
+    @staticmethod
+    @abstractmethod
+    def recovered_cases():
+        "Function for recovered data"
+
+    @staticmethod
+    @abstractmethod
+    def get_result():
+        "Return the final product"
+
+class CasesBuilder(IBuilder):
+    "The Concrete Builder."
+
+    def __init__(self):
+        self.cases = cases()
+
+    def confirmed_cases(self):
+        self.cases.confirmed(self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"])
+        return self
+
+    def deaths_cases(self):
+        self.cases.deaths(self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"])
+        return self
+
+    def recovered_cases(self):
+        self.cases.recovered(self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"])
+        return self
+
+    def get_result(self):
+        return self.cases
+
+class cases:
+    def __init__(self):
+        self.caseList = []
+        caseList[:] = [] #clear the references of the list
+    def confirmed(self, confirm):
+        return self.caseList.append(confirm)
+    def deaths(self, death):
+        return self.caseList.append(death)
+    def recovered(self, recover):
+        return self.caseList.append(recover)
+
+class CasesDirector:
+    "The Director, building a complex representation."
+
+    @staticmethod
+    def construct():
+        "Constructs and returns the final product"
+        return CasesBuilder()\
+            .confirmed_cases()\
+            .deaths_cases()\
+            .recovered_cases()\
+            .get_result()
