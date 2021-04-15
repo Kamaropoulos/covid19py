@@ -2,6 +2,7 @@ from typing import Dict, List
 import requests
 import json
 
+# COVID19 class but with the application of the Singleton Creational Design Pattern
 class COVID19(object):
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
@@ -13,7 +14,18 @@ class COVID19(object):
     mirrors_source = "https://raw.github.com/Kamaropoulos/COVID19Py/master/mirrors.json"
     mirrors = None
 
+    # Declaration of single private static instance of the class. Done to fulfill requirement for the Singleton Creational Design Pattern.
+    __singlePrivateInstance = None
+
+    # Constructor. Already privated, meaning that its already fulfills a requirement for the Singleton Creational Design Pattern.
     def __init__(self, url="https://covid-tracker-us.herokuapp.com", data_source='jhu'):
+
+	# Checks to see if an instance has already been created. If it has, we put out an error message. Otherwise, we create a new instance.
+        if COVID19.__singlePrivateInstance != None:
+	    raise Exception("Singleton pattern has been applied. An instance was previously created, hence new instance cannot be created. Use getCOVID19Instance() to access the instance.")
+        else:
+            COVID19.__singlePrivateInstance = self
+
         # Skip mirror checking if custom url was passed
         if url == self.default_url:
             # Load mirrors
@@ -49,6 +61,16 @@ class COVID19(object):
             raise ValueError("Invalid data source. Expected one of: %s" % self._valid_data_sources)
         self.data_source = data_source
 
+
+    # Public method that allows access to the single instance. Requirement for Singleton Creation Design Pattern.
+    @staticmethod
+    def getCOVID19Instance():
+        if COVID19.__singlePrivateInstance == None
+            COVID19()
+        return COVID19.__singlePrivateInstance
+
+
+    # Updates to latest data
     def _update(self, timelines):
         latest = self.getLatest()
         locations = self.getLocations(timelines)
@@ -59,29 +81,36 @@ class COVID19(object):
             "locations": locations
         }
 
+
+    # Gets data sources
     def _getSources(self):
         response = requests.get(self.url + "/v2/sources")
         response.raise_for_status()
         return response.json()["sources"]
 
+
     def _request(self, endpoint, params=None):
         if params is None:
             params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
+        response = requests.get(self.url + endpoint, {**params, "source": self.data_source})
         response.raise_for_status()
         return response.json()
 
+
+    # Gets all data at once
     def getAll(self, timelines=False):
         self._update(timelines)
         return self.latestData
 
+
+    # Gets the latest changes in COVID-19 case data since last request
     def getLatestChanges(self):
         changes = None
         if self.previousData:
             changes = {
-                "confirmed": self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"],
-                "deaths": self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"],
-                "recovered": self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"],
+                "confirmed": self.latestData["latest"]["confirmed"] - self.previousData["latest"]["confirmed"],
+                "deaths": self.latestData["latest"]["deaths"] - self.previousData["latest"]["deaths"],
+                "recovered": self.latestData["latest"]["recovered"] - self.previousData["latest"]["recovered"],
             }
         else:
             changes = {
@@ -91,6 +120,8 @@ class COVID19(object):
             }
         return changes
 
+
+    # Gets the latest COVID-19 case data
     def getLatest(self) -> List[Dict[str, int]]:
         """
         :return: The latest amount of total confirmed cases, deaths, and recoveries.
@@ -98,6 +129,8 @@ class COVID19(object):
         data = self._request("/v2/latest")
         return data["latest"]
 
+
+    # Get COVID-19 case data relating to all locations with COVID-19
     def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
         """
         Gets all locations affected by COVID-19, as well as latest case data.
@@ -123,6 +156,8 @@ class COVID19(object):
 
         return data
 
+
+    # Get COVID-19 case data by method of country code
     def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
         """
         :param country_code: String denoting the ISO 3166-1 alpha-2 code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) of the country
@@ -136,6 +171,8 @@ class COVID19(object):
             data = self._request("/v2/locations", {"country_code": country_code})
         return data["locations"]
     
+
+    # Get COVID-19 case data by method of country name
     def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
         """
         :param country: String denoting name of the country
@@ -149,6 +186,8 @@ class COVID19(object):
             data = self._request("/v2/locations", {"country": country})
         return data["locations"]
 
+
+    # Get COVID-19 case data by method of country id
     def getLocationById(self, country_id: int):
         """
         :param country_id: Country Id, an int
