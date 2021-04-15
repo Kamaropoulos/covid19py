@@ -3,6 +3,55 @@ import requests
 import json
 
 class COVID19(object):
+__metaclass__ = SingletonMeta
+
+COVID19InfoTool retrievalTool
+
+    def __init__(self):
+        retrievalTool = COVID19InfoTool()
+
+    def _update(self, timelines):
+        retrievalTool._update(timelines)
+
+    def _getSources(self):
+        return retrievalTool._getSources()
+
+    def _request(self, endpoint, params=None):
+        return retrievalTool._request(endpoint, params)
+
+    def getAll(self, timelines = False):
+        return retrievalTool.getAll(timelines)
+
+    def getLatestChanges(self):
+        return retrievalTool.getLatestChanges()
+
+    def getLatest(self) -> List[Dict[str, int]]:
+        return retrievalTool.getLatest()
+
+    def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
+        return retrievalTool.getLocations(timelines)
+
+    def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
+        return retrievalTool.getLocationByCountryCode(country_code, timelines)
+
+    def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
+        return retrievalTool.getLocationByCountry(country, timelines)
+
+    def getLocationById(self, country_id: int):
+        return retrievalTool.getLocationById(country_id)
+
+
+class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class COVID19InfoTool(object):
+    __metaclass__ = SingletonMeta
+
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
     data_source = ""
@@ -112,7 +161,7 @@ class COVID19(object):
             data = self._request("/v2/locations")
 
         data = data["locations"]
-        
+
         ranking_criteria = ['confirmed', 'deaths', 'recovered']
         if rank_by is not None:
             if rank_by not in ranking_criteria:
@@ -135,7 +184,7 @@ class COVID19(object):
         else:
             data = self._request("/v2/locations", {"country_code": country_code})
         return data["locations"]
-    
+
     def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
         """
         :param country: String denoting name of the country
