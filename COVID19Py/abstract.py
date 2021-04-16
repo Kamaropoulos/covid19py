@@ -1,54 +1,58 @@
+from abc import ABC,abstractmethod
 from typing import Dict, List
 import requests
 import json
 
-class COVID19(object):
-    default_url = "https://covid-tracker-us.herokuapp.com"
-    url = ""
-    data_source = ""
-    previousData = None
-    latestData = None
-    _valid_data_sources = []
+class AbstractAPI(ABC):
+    def __init__(self,implementation):
+        self.implementation = implementation
+        self.previousData = None
+        self.latestData = None
+    @abstractmethod
+    def _update(self, timelines):
+        pass
 
-    mirrors_source = "https://raw.github.com/Kamaropoulos/COVID19Py/master/mirrors.json"
-    mirrors = None
+    @abstractmethod
+    def _request(self, endpoint, params=None):
+        pass
 
-    def __init__(self, url="https://covid-tracker-us.herokuapp.com", data_source='jhu'):
-        # Skip mirror checking if custom url was passed
-        if url == self.default_url:
-            # Load mirrors
-            response = requests.get(self.mirrors_source)
-            response.raise_for_status()
-            self.mirrors = response.json()
 
-            # Try to get sources as a test
-            for mirror in self.mirrors:
-                # Set URL of mirror
-                self.url = mirror["url"]
-                result = None
-                try:
-                    result = self._getSources()
-                except Exception as e:
-                    # URL did not work, reset it and move on
-                    self.url = ""
-                    continue
+    @abstractmethod
+    def getAll(self, timelines=False):
+        pass
 
-                # TODO: Should have a better health-check, this is way too hacky...
-                if "jhu" in result:
-                    # We found a mirror that worked just fine, let's stick with it
-                    break
 
-                # None of the mirrors worked. Raise an error to inform the user.
-                raise RuntimeError("No available API mirror was found.")
+    @abstractmethod
+    def getLatestChanges(self):
+        pass
 
-        else:
-            self.url = url
+    @abstractmethod
+    def getLatest(self) -> List[Dict[str, int]]:
+        pass
 
-        self._valid_data_sources = self._getSources()
-        if data_source not in self._valid_data_sources:
-            raise ValueError("Invalid data source. Expected one of: %s" % self._valid_data_sources)
-        self.data_source = data_source
+    @abstractmethod
+    def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
+        pass
 
+
+    @abstractmethod
+    def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
+        pass
+
+
+    @abstractmethod
+    def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
+        pass
+
+    @abstractmethod
+    def getLocationById(self, country_id: int):
+        pass
+
+
+class COVIDAPI(AbstractAPI):
+
+    def __init__(self,implementation):
+        super().__init__(implementation)
     def _update(self, timelines):
         latest = self.getLatest()
         locations = self.getLocations(timelines)
@@ -59,19 +63,14 @@ class COVID19(object):
             "locations": locations
         }
 
-    def _getSources(self):
-        response = requests.get(self.url + "/v2/sources")
-        response.raise_for_status()
-        return response.json()["sources"]
-
     def _request(self, endpoint, params=None):
         if params is None:
             params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
+        response = requests.get(self.implementation.url+endpoint,{**params,"source":self.implementation.data_source})
         response.raise_for_status()
         return response.json()
 
-    def getAll(self, timelines=False):
+    def getAll(self,timelines=False):
         self._update(timelines)
         return self.latestData
 
@@ -91,11 +90,13 @@ class COVID19(object):
             }
         return changes
 
+    
     def getLatest(self) -> List[Dict[str, int]]:
         """
         :return: The latest amount of total confirmed cases, deaths, and recoveries.
         """
-        data = self._request("/v2/latest")
+        endpoint = self.implementation.getEndLatest()
+        data = self._request(endpoint)
         return data["latest"]
 
     def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
@@ -106,10 +107,12 @@ class COVID19(object):
         :return: List of dictionaries representing all affected locations.
         """
         data = None
+
+        endpoint = self.implementation.getEndLocations()
         if timelines:
-            data = self._request("/v2/locations", {"timelines": str(timelines).lower()})
+            data = self._request(endpoint, {"timelines": str(timelines).lower()})
         else:
-            data = self._request("/v2/locations")
+            data = self._request(endpoint)
 
         data = data["locations"]
         
@@ -130,12 +133,14 @@ class COVID19(object):
         :return: A list of areas that correspond to the country_code. If the country_code is invalid, it returns an empty list.
         """
         data = None
+        endpoint = self.implementation.getEndLocations()
+
         if timelines:
-            data = self._request("/v2/locations", {"country_code": country_code, "timelines": str(timelines).lower()})
+            data = self._request(endpoint, {"country_code": country_code, "timelines": str(timelines).lower()})
         else:
-            data = self._request("/v2/locations", {"country_code": country_code})
+            data = self._request(endpoint, {"country_code": country_code})
         return data["locations"]
-    
+
     def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
         """
         :param country: String denoting name of the country
@@ -143,16 +148,22 @@ class COVID19(object):
         :return: A list of areas that correspond to the country name. If the country is invalid, it returns an empty list.
         """
         data = None
+        endpoint = self.implementation.getEndLocations()
+
         if timelines:
-            data = self._request("/v2/locations", {"country": country, "timelines": str(timelines).lower()})
+            data = self._request(endpoint, {"country": country, "timelines": str(timelines).lower()})
         else:
-            data = self._request("/v2/locations", {"country": country})
+            data = self._request(endpoint, {"country": country})
         return data["locations"]
 
+
+    
     def getLocationById(self, country_id: int):
         """
         :param country_id: Country Id, an int
         :return: A dictionary with case information for the specified location.
         """
-        data = self._request("/v2/locations/" + str(country_id))
+        endpoint = self.implementation.getEndLocations()
+
+        data = self._request(endpoint + str(country_id))
         return data["location"]
