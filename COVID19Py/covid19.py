@@ -3,12 +3,62 @@ import requests
 import json
 
 class COVID19(object):
+
+COVID19InfoTool retrievalTool
+COVID19Data data
+previousData = None
+latestData = None
+url = ""
+data_source = ""
+
+    def __init__(self, url, data_source):
+        retrievalTool = COVID19InfoTool()
+        data = COVID19Data(url, data_source)
+        self.url = data.url
+        self.data_source = data.data_source
+
+    def _update(self, timelines):
+        data._update(timelines)
+        self.previousData = data.previousData
+        self.latestData = data.latestData
+
+    def _getSources(self):
+        return retrievalTool._getSources()
+
+    def _request(self, endpoint, params=None):
+        return data._request(endpoint, params)
+
+    def getAll(self, timelines = False):
+        return data.getAll(timelines)
+
+    def getLatestChanges(self):
+        return retrievalTool.getLatestChanges(self.previousData, self.latestData)
+
+    def getLatest(self) -> List[Dict[str, int]]:
+        return retrievalTool.getLatest(self.url, self.data_source)
+
+    def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
+        return retrievalTool.getLocations(timelines, self.url, self.data_source)
+
+    def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
+        return retrievalTool.getLocationByCountryCode(country_code, timelines, self.url, self.data_source)
+
+    def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
+        return retrievalTool.getLocationByCountry(country, timelines, self.url, self.data_source)
+
+    def getLocationById(self, country_id: int):
+        return retrievalTool.getLocationById(country_id, self.url, self.data_source)
+
+
+
+class COVID19Data(object):
+
     default_url = "https://covid-tracker-us.herokuapp.com"
     url = ""
     data_source = ""
+    _valid_data_sources = []
     previousData = None
     latestData = None
-    _valid_data_sources = []
 
     mirrors_source = "https://raw.github.com/Kamaropoulos/COVID19Py/master/mirrors.json"
     mirrors = None
@@ -59,29 +109,36 @@ class COVID19(object):
             "locations": locations
         }
 
-    def _getSources(self):
-        response = requests.get(self.url + "/v2/sources")
-        response.raise_for_status()
-        return response.json()["sources"]
-
-    def _request(self, endpoint, params=None):
-        if params is None:
-            params = {}
-        response = requests.get(self.url + endpoint, {**params, "source":self.data_source})
-        response.raise_for_status()
-        return response.json()
-
     def getAll(self, timelines=False):
         self._update(timelines)
         return self.latestData
 
-    def getLatestChanges(self):
+
+class COVID19InfoTool(object):
+
+    def __init__(self):
+        pass
+
+    def _getSources(self, url):
+        response = requests.get(url + "/v2/sources")
+        response.raise_for_status()
+        return response.json()["sources"]
+
+    def _request(self, endpoint, params=None, url, data_source):
+        if params is None:
+            params = {}
+        response = requests.get(url + endpoint, {**params, "source":data_source})
+        response.raise_for_status()
+        return response.json()
+
+
+    def getLatestChanges(self, previousData, latestData):
         changes = None
-        if self.previousData:
+        if previousData:
             changes = {
-                "confirmed": self.latestData["latest"]["confirmed"] - self.latestData["latest"]["confirmed"],
-                "deaths": self.latestData["latest"]["deaths"] - self.latestData["latest"]["deaths"],
-                "recovered": self.latestData["latest"]["recovered"] - self.latestData["latest"]["recovered"],
+                "confirmed": latestData["latest"]["confirmed"] - latestData["latest"]["confirmed"],
+                "deaths": latestData["latest"]["deaths"] - latestData["latest"]["deaths"],
+                "recovered": latestData["latest"]["recovered"] -latestData["latest"]["recovered"],
             }
         else:
             changes = {
@@ -91,28 +148,19 @@ class COVID19(object):
             }
         return changes
 
-    def getLatest(self) -> List[Dict[str, int]]:
-        """
-        :return: The latest amount of total confirmed cases, deaths, and recoveries.
-        """
-        data = self._request("/v2/latest")
+    def getLatest(self, url, data_source) -> List[Dict[str, int]]:
+        data = self._request("/v2/latest", None, url, data_source)
         return data["latest"]
 
-    def getLocations(self, timelines=False, rank_by: str = None) -> List[Dict]:
-        """
-        Gets all locations affected by COVID-19, as well as latest case data.
-        :param timelines: Whether timeline information should be returned as well.
-        :param rank_by: Category to rank results by. ex: confirmed
-        :return: List of dictionaries representing all affected locations.
-        """
+    def getLocations(self, timelines=False, rank_by: str = None, url, data_source) -> List[Dict]:
         data = None
         if timelines:
-            data = self._request("/v2/locations", {"timelines": str(timelines).lower()})
+            data = self._request("/v2/locations", {"timelines": str(timelines).lower()}, url, data_source)
         else:
-            data = self._request("/v2/locations")
+            data = self._request("/v2/locations", None, url, data_source)
 
         data = data["locations"]
-        
+
         ranking_criteria = ['confirmed', 'deaths', 'recovered']
         if rank_by is not None:
             if rank_by not in ranking_criteria:
@@ -123,36 +171,22 @@ class COVID19(object):
 
         return data
 
-    def getLocationByCountryCode(self, country_code, timelines=False) -> List[Dict]:
-        """
-        :param country_code: String denoting the ISO 3166-1 alpha-2 code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) of the country
-        :param timelines: Whether timeline information should be returned as well.
-        :return: A list of areas that correspond to the country_code. If the country_code is invalid, it returns an empty list.
-        """
+    def getLocationByCountryCode(self, country_code, timelines=False, url, data_source) -> List[Dict]:
         data = None
         if timelines:
-            data = self._request("/v2/locations", {"country_code": country_code, "timelines": str(timelines).lower()})
+            data = self._request("/v2/locations", {"country_code": country_code, "timelines": str(timelines).lower()}, url, data_source)
         else:
-            data = self._request("/v2/locations", {"country_code": country_code})
-        return data["locations"]
-    
-    def getLocationByCountry(self, country, timelines=False) -> List[Dict]:
-        """
-        :param country: String denoting name of the country
-        :param timelines: Whether timeline information should be returned as well.
-        :return: A list of areas that correspond to the country name. If the country is invalid, it returns an empty list.
-        """
-        data = None
-        if timelines:
-            data = self._request("/v2/locations", {"country": country, "timelines": str(timelines).lower()})
-        else:
-            data = self._request("/v2/locations", {"country": country})
+            data = self._request("/v2/locations", {"country_code": country_code}, url, data_source)
         return data["locations"]
 
-    def getLocationById(self, country_id: int):
-        """
-        :param country_id: Country Id, an int
-        :return: A dictionary with case information for the specified location.
-        """
-        data = self._request("/v2/locations/" + str(country_id))
+    def getLocationByCountry(self, country, timelines=False, url, data_source) -> List[Dict]:
+        data = None
+        if timelines:
+            data = self._request("/v2/locations", {"country": country, "timelines": str(timelines).lower()}, url, data_source)
+        else:
+            data = self._request("/v2/locations", {"country": country}, url, data_source)
+        return data["locations"]
+
+    def getLocationById(self, country_id: int, url, data_source):
+        data = self._request("/v2/locations/" + str(country_id), None, url, data_source)
         return data["location"]
